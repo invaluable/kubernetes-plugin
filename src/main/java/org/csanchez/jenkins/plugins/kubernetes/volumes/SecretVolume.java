@@ -24,12 +24,19 @@
 
 package org.csanchez.jenkins.plugins.kubernetes.volumes;
 
+import java.util.ArrayList;
+import java.util.List;
+
 import org.apache.commons.lang.StringUtils;
 import org.jenkinsci.Symbol;
 import org.kohsuke.stapler.DataBoundConstructor;
+import org.kohsuke.stapler.DataBoundSetter;
 
 import hudson.Extension;
+import hudson.Util;
 import hudson.model.Descriptor;
+import io.fabric8.kubernetes.api.model.KeyToPath;
+import io.fabric8.kubernetes.api.model.KeyToPathBuilder;
 import io.fabric8.kubernetes.api.model.SecretVolumeSource;
 import io.fabric8.kubernetes.api.model.Volume;
 import io.fabric8.kubernetes.api.model.VolumeBuilder;
@@ -38,18 +45,28 @@ public class SecretVolume extends PodVolume {
     private String mountPath;
     private String secretName;
     private String defaultMode;
+    private String subPath;
     private Boolean optional;
 
     @DataBoundConstructor
-    public SecretVolume(String mountPath, String secretName, String defaultMode, Boolean optional) {
+    public SecretVolume(String mountPath, String secretName, String defaultMode, String subPath, Boolean optional) {
         this.mountPath = mountPath;
         this.secretName = secretName;
         this.defaultMode = defaultMode;
+        this.subPath = subPath;
         this.optional = optional;
     }
 
+    public SecretVolume(String mountPath, String secretName, String defaultMode, Boolean optional) {
+        this(mountPath, secretName, defaultMode, null, optional);
+    }
+
+    public SecretVolume(String mountPath, String secretName, String subPath) {
+        this(mountPath, secretName, null, subPath, false);
+    }
+
     public SecretVolume(String mountPath, String secretName) {
-        this(mountPath, secretName, null, false);
+        this(mountPath, secretName, null, null, false);
     }
 
     @Override
@@ -60,6 +77,12 @@ public class SecretVolume extends PodVolume {
 
         if (StringUtils.isNotBlank(defaultMode)) {
             secretVolumeSource.setDefaultMode(Integer.parseInt(getDefaultMode()));
+        }
+
+        if (StringUtils.isNotBlank(subPath)) {
+            List<KeyToPath> items = new ArrayList<>();
+            items.add(new KeyToPathBuilder().withKey(getSubPath()).build());
+            secretVolumeSource.setItems(items);
         }
 
         return new VolumeBuilder()
@@ -86,10 +109,25 @@ public class SecretVolume extends PodVolume {
         return optional;
     }
 
+    public String getSubPath() {
+        return subPath;
+    }
+    
+    @DataBoundSetter
+    public void setSubPath(String subPath) {
+        this.subPath = Util.fixEmpty(subPath);
+    }
+
+    protected Object readResolve() {
+        this.subPath = Util.fixEmpty(subPath);
+        return this;
+    }
+
     @Override
     public String toString() {
         return "SecretVolume [mountPath=" + mountPath + ", secretName=" + secretName
-            + ", defaultMode=" + defaultMode + ", optional=" + String.valueOf(optional) + "]";
+            + ", defaultMode=" + defaultMode + ", optional=" + String.valueOf(optional)
+            + ", subPath=" + subPath + "]";
     }
 
     @Extension

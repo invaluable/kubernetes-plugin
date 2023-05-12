@@ -24,14 +24,22 @@
 
 package org.csanchez.jenkins.plugins.kubernetes.volumes;
 
+import java.util.ArrayList;
+import java.util.List;
+
+import org.apache.commons.lang.StringUtils;
 import org.jenkinsci.Symbol;
 import org.kohsuke.stapler.DataBoundConstructor;
 
 import hudson.Extension;
 import hudson.Util;
 import hudson.model.Descriptor;
+import io.fabric8.kubernetes.api.model.KeyToPath;
+import io.fabric8.kubernetes.api.model.KeyToPathBuilder;
 import io.fabric8.kubernetes.api.model.Volume;
 import io.fabric8.kubernetes.api.model.VolumeBuilder;
+import io.fabric8.kubernetes.api.model.VolumeFluent.ConfigMapNested;
+
 import org.kohsuke.stapler.DataBoundSetter;
 
 
@@ -42,22 +50,33 @@ public class ConfigMapVolume extends PodVolume {
     private Boolean optional;
 
     @DataBoundConstructor
-    public ConfigMapVolume(String mountPath, String configMapName, Boolean optional) {
+    public ConfigMapVolume(String mountPath, String configMapName, String subPath, Boolean optional) {
         this.mountPath = mountPath;
         this.configMapName = configMapName;
+        this.subPath = subPath;
         this.optional = optional;
     }
 
+    public ConfigMapVolume(String mountPath, String configMapName, Boolean optional) {
+        this(mountPath, configMapName, null, optional);
+    }
 
     @Override
     public Volume buildVolume(String volumeName) {
-        return new VolumeBuilder()
-                .withName(volumeName)
-                .withNewConfigMap()
-                    .withName(getConfigMapName())
-                    .withOptional(getOptional())
-                .and()
-                .build();
+        ConfigMapNested<VolumeBuilder> baseVolume = new VolumeBuilder()
+            .withName(volumeName)
+            .withNewConfigMap()
+                .withName(getConfigMapName())
+                .withOptional(getOptional());
+
+        if (StringUtils.isNotBlank(subPath)) {
+            List<KeyToPath> items = new ArrayList<>();
+            items.add(new KeyToPathBuilder().withKey(getSubPath()).build());
+
+            return baseVolume.withItems(items).and().build();
+        }
+
+        return baseVolume.and().build();
     }
 
     public String getConfigMapName() {
